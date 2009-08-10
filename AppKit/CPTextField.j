@@ -116,6 +116,7 @@ var CPSecureTextFieldCharacter = "\u2022";
 
 CPTextFieldStateRounded     = CPThemeState("rounded");
 CPTextFieldStatePlaceholder = CPThemeState("placeholder");
+CPThemeStateEditable		= CPThemeState("editable");
 
 /*!
     @ingroup appkit
@@ -209,8 +210,8 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 + (id)themeAttributes
 {
-    return [CPDictionary dictionaryWithObjects:[_CGInsetMakeZero(), _CGInsetMake(2.0, 2.0, 2.0, 2.0), nil]
-                                       forKeys:[@"bezel-inset", @"content-inset", @"bezel-color"]];
+    return [CPDictionary dictionaryWithObjects:[_CGInsetMakeZero(), _CGInsetMake(2.0, 2.0, 2.0, 2.0), nil, nil, _CGInsetMakeZero()]
+                                       forKeys:[@"bezel-inset", @"content-inset", @"bezel-color", @"focus-ring-color", @"focus-inset"]];
 }
 
 /* @ignore */
@@ -260,28 +261,37 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
             if (aDOMEvent.keyCode == CPReturnKeyCode || aDOMEvent.keyCode == CPTabKeyCode) 
             {
-                if (aDOMEvent.preventDefault)
-                    aDOMEvent.preventDefault(); 
-                if (aDOMEvent.stopPropagation)
-                    aDOMEvent.stopPropagation();
-                aDOMEvent.cancelBubble = true;
-
-                var owner = CPTextFieldInputOwner;
-
+               var owner = CPTextFieldInputOwner;
+ 
                 if (aDOMEvent && aDOMEvent.keyCode == CPReturnKeyCode)
                 {
-                   // [owner sendAction:[owner action] to:[owner target]];    
-                  //  [[owner window] makeFirstResponder:nil];
-                  [self selectText:self];
+                	if (!aDOMEvent.altKey)
+                	{
+                		if (aDOMEvent.preventDefault)
+                   			aDOMEvent.preventDefault(); 
+               			if (aDOMEvent.stopPropagation)
+                  		  	aDOMEvent.stopPropagation();
+             	   		aDOMEvent.cancelBubble = true;
+             	   		[self _inputElement].select(); //this causes only the first textfield that gets focus to select... All other textfields don't select... :S
+                	}
+                    //[owner sendAction:[owner action] to:[owner target]];    
+                    //[[owner window] makeFirstResponder:nil];
                 }
                 else if (aDOMEvent && aDOMEvent.keyCode == CPTabKeyCode)
                 {
+                	 if (aDOMEvent.preventDefault)
+                   		 aDOMEvent.preventDefault(); 
+               		 if (aDOMEvent.stopPropagation)
+                  		  aDOMEvent.stopPropagation();
+             	   	 aDOMEvent.cancelBubble = true;
+ 
+
                     if (!aDOMEvent.shiftKey)
                         [[owner window] selectNextKeyView:owner];
                     else
                         [[owner window] selectPreviousKeyView:owner];
                 }
-            }
+            } 
 
             [[CPRunLoop currentRunLoop] limitDateForMode:CPDefaultRunLoopMode];
         }
@@ -441,6 +451,11 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 - (void)setEditable:(BOOL)shouldBeEditable
 {
     _isEditable = shouldBeEditable;
+    
+    if (shouldBeEditable)
+        [self setThemeState:CPThemeStateEditable];
+    else
+        [self unsetThemeState:CPThemeStateEditable];
 }
 
 /*!
@@ -638,7 +653,9 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     var contentRect = [self contentRectForBounds:[self bounds]];
 
     element.style.top = _CGRectGetMinY(contentRect) + "px";
-    element.style.left = (_CGRectGetMinX(contentRect) - 1) + "px"; // why -1?
+    element.style.left = (_CGRectGetMinX(contentRect) - 1) + "px"; // why -1? //will be -3 if it wraps
+    if([self wraps])
+    	element.style.left = (_CGRectGetMinX(contentRect) - 3) + "px"; //will be -3 if it wraps	
     element.style.width = _CGRectGetWidth(contentRect) + "px";
     element.style.height = _CGRectGetHeight(contentRect) + "px";
 
@@ -653,7 +670,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     //post CPControlTextDidBeginEditingNotification
     [self textDidBeginEditing:[CPNotification notificationWithName:CPControlTextDidBeginEditingNotification object:self userInfo:nil]];
     
-    [[CPDOMWindowBridge sharedDOMWindowBridge] _propagateCurrentDOMEvent:YES];
+    [[[self window] platformWindow] _propagateCurrentDOMEvent:YES];
     
     CPTextFieldInputIsActive = YES;
 
@@ -748,7 +765,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 {
     var string = [self stringValue];
 
-    if ((!string || string.length === 0) && ![self hasThemeState:CPThemeStateEditing])
+    if ((!string || [string length] === 0) && ![self hasThemeState:CPThemeStateEditing])
         [self setThemeState:CPTextFieldStatePlaceholder];
     else
         [self unsetThemeState:CPTextFieldStatePlaceholder];
@@ -908,10 +925,28 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     return bounds;
 }
 
+- (CGRect)focusRingRectForBounds:(CFRect)bounds
+{
+    var focusRingInset = [self currentValueForThemeAttribute:@"focus-inset"];
+
+    if (_CGInsetIsEmpty(focusRingInset))
+        return bounds;
+    
+    bounds.origin.x += focusRingInset.left;
+    bounds.origin.y += focusRingInset.top;
+    bounds.size.width -= focusRingInset.left + focusRingInset.right;
+    bounds.size.height -= focusRingInset.top + focusRingInset.bottom;
+    
+    return bounds;
+}
+
 - (CGRect)rectForEphemeralSubviewNamed:(CPString)aName
 {
     if (aName === "bezel-view")
         return [self bezelRectForBounds:[self bounds]];
+  	
+  	else if (aName === "focus-ring-view")
+        return [self focusRingRectForBounds:[self bounds]];
     
     else if (aName === "content-view")
         return [self contentRectForBounds:[self bounds]];
@@ -922,6 +957,14 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 - (CPView)createEphemeralSubviewNamed:(CPString)aName
 {
     if (aName === "bezel-view")
+    {
+        var view = [[CPView alloc] initWithFrame:_CGRectMakeZero()];
+
+        [view setHitTests:NO];
+        
+        return view;
+    }
+    else if (aName === "focus-ring-view")
     {
         var view = [[CPView alloc] initWithFrame:_CGRectMakeZero()];
 
@@ -942,12 +985,21 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 - (void)layoutSubviews
 {
+	var focusRingView = [self layoutEphemeralSubviewNamed:@"focus-ring-view"
+                                           positioned:CPWindowBelow
+                      relativeToEphemeralSubviewNamed:@"content-view"];
+   	if (focusRingView)
+        [focusRingView setBackgroundColor:[self currentValueForThemeAttribute:@"focus-ring-color"]];
+
     var bezelView = [self layoutEphemeralSubviewNamed:@"bezel-view"
                                            positioned:CPWindowBelow
                       relativeToEphemeralSubviewNamed:@"content-view"];
       
     if (bezelView)
         [bezelView setBackgroundColor:[self currentValueForThemeAttribute:@"bezel-color"]];
+        
+    
+	
     
     var contentView = [self layoutEphemeralSubviewNamed:@"content-view"
                                              positioned:CPWindowAbove
@@ -978,14 +1030,12 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
         [contentView setLineBreakMode:[self currentValueForThemeAttribute:@"line-break-mode"]];
         [contentView setTextShadowColor:[self currentValueForThemeAttribute:@"text-shadow-color"]];
         [contentView setTextShadowOffset:[self currentValueForThemeAttribute:@"text-shadow-offset"]];
-        
-        
     }
 }
 
 - (void)setWraps:(BOOL)aFlag
 {
-	_wraps = aFlag
+	_wraps = aFlag;
 }
 
 - (BOOL)wraps
