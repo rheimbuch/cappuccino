@@ -254,7 +254,7 @@
     return scroller;
 }
 
-+ (CPTextField)themedStandardTextField
++ (CPTextField)themedLabelTextFieldWithFocusRing
 {
     var textfield = [[CPTextField alloc] initWithFrame:CGRectMake(0.0, 0.0, 60.0, 29.0)],
         bezelColor = [CPColor colorWithPatternImage:[[CPNinePartImage alloc] initWithImageSlices:
@@ -270,34 +270,53 @@
                 [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-8.png" size:CGSizeMake(2.0, 2.0)]
             ]]],
 
-        bezelFocusedColor = [CPColor colorWithPatternImage:[[CPNinePartImage alloc] initWithImageSlices:
+        focusRingColor = [CPColor colorWithPatternImage:[[CPNinePartImage alloc] initWithImageSlices:
             [
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-0.png" size:CGSizeMake(6.0, 7.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-1.png" size:CGSizeMake(1.0, 7.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-2.png" size:CGSizeMake(6.0, 7.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-3.png" size:CGSizeMake(6.0, 1.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-4.png" size:CGSizeMake(1.0, 1.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-5.png" size:CGSizeMake(6.0, 1.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-6.png" size:CGSizeMake(6.0, 5.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-7.png" size:CGSizeMake(1.0, 5.0)],
-                [_CPCibCustomResource imageResourceWithName:"textfield-bezel-square-focused-8.png" size:CGSizeMake(6.0, 5.0)]
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-0.png" size:CGSizeMake(7.0, 7.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-1.png" size:CGSizeMake(2.0, 7.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-2.png" size:CGSizeMake(7.0, 7.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-3.png" size:CGSizeMake(7.0, 2.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-4.png" size:CGSizeMake(1.0, 1.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-5.png" size:CGSizeMake(7.0, 2.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-6.png" size:CGSizeMake(7.0, 7.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-7.png" size:CGSizeMake(2.0, 7.0)],
+                [_CPCibCustomResource imageResourceWithName:"square-focus-ring-8.png" size:CGSizeMake(7.0, 7.0)]
             ]]];
 
-    [textfield setBezeled:YES];
+    [textfield setBezeled:NO];
 
+	
     [textfield setValue:bezelColor forThemeAttribute:@"bezel-color" inState:CPThemeStateBezeled];
-    [textfield setValue:bezelFocusedColor forThemeAttribute:@"bezel-color" inState:CPThemeStateBezeled|CPThemeStateEditing];
+    [textfield setValue:focusRingColor forThemeAttribute:@"focus-ring-color" inState:CPThemeStateEditing];
     [textfield setValue:[CPFont systemFontOfSize:12.0] forThemeAttribute:@"font" inState:CPThemeStateBezeled];
+
+    [textfield setValue:CGInsetMake(9.0, 7.0, 5.0, 8.0) forThemeAttribute:@"content-inset" inState:CPThemeStateEditable];
     [textfield setValue:CGInsetMake(9.0, 7.0, 5.0, 8.0) forThemeAttribute:@"content-inset" inState:CPThemeStateBezeled];
-
+        
     [textfield setValue:CGInsetMake(4.0, 4.0, 3.0, 4.0) forThemeAttribute:@"bezel-inset" inState:CPThemeStateBezeled];
-    [textfield setValue:CGInsetMake(0.0, 0.0, 0.0, 0.0) forThemeAttribute:@"bezel-inset" inState:CPThemeStateBezeled|CPThemeStateEditing];
+    [textfield setValue:CGInsetMake(2, 0, 0, 0) forThemeAttribute:@"focus-inset" inState:CPThemeStateEditing];
+    [textfield setValue:CGInsetMake(0, 0, 0, 0) forThemeAttribute:@"focus-inset" inState:CPThemeStateBezeled|CPThemeStateEditing];
+        
+    [textfield setValue:[CPFont systemFontOfSize:12.0] forThemeAttribute:@"font"];
+    
 
+    
     [textfield setValue:[CPColor colorWithCalibratedRed:189.0 / 255.0 green:199.0 / 255.0 blue:211.0 / 255.0 alpha:1.0] forThemeAttribute:@"text-color" inState:CPTextFieldStatePlaceholder];
 
     [textfield setPlaceholderString:"placeholder"];
     [textfield setStringValue:""];
     [textfield setEditable:YES];
+
+    return textfield;
+}
+
++ (CPTextField)themedLabelTextFieldWithFocusRing2
+{
+    
+    var textfield = [self themedLabelTextFieldWithFocusRing];
+    
+    [textfield setStringValue:"123"];
+    [textfield setEditable:NO];
 
     return textfield;
 }
@@ -324,6 +343,7 @@
 
     [textfield setValue:bezelColor forThemeAttribute:@"bezel-color" inState:CPThemeStateBezeled | CPTextFieldStateRounded];
     [textfield setValue:bezelFocusedColor forThemeAttribute:@"bezel-color" inState:CPThemeStateBezeled | CPTextFieldStateRounded | CPThemeStateEditing];
+    [textfield setValue:[CPColor clearColor] forThemeAttribute: @"focus-ring-color" inState:CPThemeStateBezeled | CPTextFieldStateRounded | CPThemeStateEditing];
 
     [textfield setValue:[CPFont systemFontOfSize:12.0] forThemeAttribute:@"font"];
     [textfield setValue:CGInsetMake(9.0, 14.0, 6.0, 14.0) forThemeAttribute:@"content-inset" inState:CPThemeStateBezeled | CPTextFieldStateRounded];
@@ -451,20 +471,20 @@
 {
     var segmentedControl = [[CPSegmentedControl alloc] initWithFrame:CGRectMake(0.0, 0.0, 0.0, 24.0)];
     
-    [segmentedControl setTrackingMode:CPSegmentSwitchTrackingSelectAny];
-    [segmentedControl setSegmentCount:3];
+    [segmentedControl setTrackingMode:CPSegmentSwitchTrackingSelectOne];
+    [segmentedControl setSegmentCount:2];
     
-    [segmentedControl setWidth:40.0 forSegment:0];
-    [segmentedControl setLabel:@"foo" forSegment:0];
+    [segmentedControl setWidth:100.0 forSegment:0];
+    [segmentedControl setLabel:@"Work Date" forSegment:0];
     [segmentedControl setTag:1 forSegment:0];
     
-    [segmentedControl setWidth:60.0 forSegment:1];
-    [segmentedControl setLabel:@"bar" forSegment:1];
+    [segmentedControl setWidth:100.0 forSegment:1];
+    [segmentedControl setLabel:@"Comments" forSegment:1];
     [segmentedControl setTag:2 forSegment:1];
 
-    [segmentedControl setWidth:25.0 forSegment:2];
-    [segmentedControl setLabel:@"1" forSegment:2];
-    [segmentedControl setTag:3 forSegment:2];
+//    [segmentedControl setWidth:25.0 forSegment:2];
+  //  [segmentedControl setLabel:@"1" forSegment:2];
+    //[segmentedControl setTag:3 forSegment:2];
     
     //various colors
     var centerBezelColor = PatternColor([_CPCibCustomResource imageResourceWithName:@"segmented-control-bezel-center.png" size:CGSizeMake(1.0, 24.0)]),
