@@ -6,6 +6,10 @@
  * Created by Francisco Tolmasky.
  * Copyright 2008, 280 North, Inc.
  *
+ * Extended by Randall Luecke (July 21, 2009)
+ * Adding support for wrapping editable textFields
+ * Call setWraps:YES and then setLineBreakMode:CPLineBreakByWordWrapping
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -80,6 +84,7 @@ CPTextFieldRoundedBezel         = 1;
 var CPTextFieldDOMInputElement = nil,
     CPTextFieldDOMPasswordInputElement = nil,
     CPTextFieldDOMStandardInputElement = nil,
+    CPTextFieldDOMMultilineInputElement = nil,
     CPTextFieldInputOwner = nil,
     CPTextFieldTextDidChangeValue = nil,
     CPTextFieldInputResigning = NO,
@@ -100,7 +105,7 @@ var CPSecureTextFieldCharacter = "\u2022";
 @implementation CPString (CPTextFieldAdditions)
 
 /*!
-    Returns the string (\c self).
+    Returns the string (<code>self</code>).
 */
 - (CPString)string
 {
@@ -111,6 +116,7 @@ var CPSecureTextFieldCharacter = "\u2022";
 
 CPTextFieldStateRounded     = CPThemeState("rounded");
 CPTextFieldStatePlaceholder = CPThemeState("placeholder");
+CPThemeStateEditable		= CPThemeState("editable");
 
 /*!
     @ingroup appkit
@@ -136,6 +142,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     CPTextFieldBezelStyle   _bezelStyle;
     BOOL                    _isBordered;
     CPControlSize           _controlSize;
+   	BOOL					_wraps; // if true we use a textarea 
 }
 
 + (CPTextField)textFieldWithStringValue:(CPString)aStringValue placeholder:(CPString)aPlaceholder width:(float)aWidth
@@ -203,8 +210,8 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 + (id)themeAttributes
 {
-    return [CPDictionary dictionaryWithObjects:[_CGInsetMakeZero(), _CGInsetMake(2.0, 2.0, 2.0, 2.0), nil]
-                                       forKeys:[@"bezel-inset", @"content-inset", @"bezel-color"]];
+    return [CPDictionary dictionaryWithObjects:[_CGInsetMakeZero(), _CGInsetMake(2.0, 2.0, 2.0, 2.0), nil, nil, _CGInsetMakeZero()]
+                                       forKeys:[@"bezel-inset", @"content-inset", @"bezel-color", @"focus-ring-color", @"focus-inset"]];
 }
 
 /* @ignore */
@@ -254,27 +261,37 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
             if (aDOMEvent.keyCode == CPReturnKeyCode || aDOMEvent.keyCode == CPTabKeyCode) 
             {
-                if (aDOMEvent.preventDefault)
-                    aDOMEvent.preventDefault(); 
-                if (aDOMEvent.stopPropagation)
-                    aDOMEvent.stopPropagation();
-                aDOMEvent.cancelBubble = true;
-
-                var owner = CPTextFieldInputOwner;
-
+               var owner = CPTextFieldInputOwner;
+ 
                 if (aDOMEvent && aDOMEvent.keyCode == CPReturnKeyCode)
                 {
-                    [owner sendAction:[owner action] to:[owner target]];    
-                    [[owner window] makeFirstResponder:nil];
+                	if (!aDOMEvent.altKey)
+                	{
+                		if (aDOMEvent.preventDefault)
+                   			aDOMEvent.preventDefault(); 
+               			if (aDOMEvent.stopPropagation)
+                  		  	aDOMEvent.stopPropagation();
+             	   		aDOMEvent.cancelBubble = true;
+             	   		[self _inputElement].select(); //this causes only the first textfield that gets focus to select... All other textfields don't select... :S
+                	}
+                    //[owner sendAction:[owner action] to:[owner target]];    
+                    //[[owner window] makeFirstResponder:nil];
                 }
                 else if (aDOMEvent && aDOMEvent.keyCode == CPTabKeyCode)
                 {
+                	 if (aDOMEvent.preventDefault)
+                   		 aDOMEvent.preventDefault(); 
+               		 if (aDOMEvent.stopPropagation)
+                  		  aDOMEvent.stopPropagation();
+             	   	 aDOMEvent.cancelBubble = true;
+ 
+
                     if (!aDOMEvent.shiftKey)
                         [[owner window] selectNextKeyView:owner];
                     else
                         [[owner window] selectPreviousKeyView:owner];
                 }
-            }    
+            } 
 
             [[CPRunLoop currentRunLoop] limitDateForMode:CPDefaultRunLoopMode];
         }
@@ -317,17 +334,20 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
         CPTextFieldDOMInputElement.onblur = CPTextFieldBlurFunction;
         
         CPTextFieldDOMStandardInputElement = CPTextFieldDOMInputElement;
-    }
+    } 
     
-    if (CPFeatureIsCompatible(CPInputTypeCanBeChangedFeature))
+    /*if (CPFeatureIsCompatible(CPInputTypeCanBeChangedFeature))
     {
         if ([self isSecure])
             CPTextFieldDOMInputElement.type = "password";
+		else if ([self wraps])
+			alert("CPFeatureIsCompatible");
+			CPTextFieldDOMInputElement.type = "textarea";
         else
             CPTextFieldDOMInputElement.type = "text";
 
         return CPTextFieldDOMInputElement;
-    }
+    }*/
 
     if ([self isSecure])
     {
@@ -343,20 +363,65 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
             CPTextFieldDOMPasswordInputElement.style.outline = "none";
             CPTextFieldDOMPasswordInputElement.type = "password";
 
-            CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyUp, CPTextFieldKeyUpFunction);
-            CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyDown, CPTextFieldKeyDownFunction);
-            CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyPress, CPTextFieldKeyPressFunction);
+            if (document.attachEvent)
+       		{
+       	    	CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyUp, CPTextFieldKeyUpFunction);
+         		CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyDown, CPTextFieldKeyDownFunction);
+            	CPTextFieldDOMPasswordInputElement.attachEvent("on" + CPDOMEventKeyPress, CPTextFieldKeyPressFunction);
+       		}
+        	else
+        	{
+            	CPTextFieldDOMPasswordInputElement.addEventListener(CPDOMEventKeyUp, CPTextFieldKeyUpFunction, NO);
+            	CPTextFieldDOMPasswordInputElement.addEventListener(CPDOMEventKeyDown, CPTextFieldKeyDownFunction, NO);
+            	CPTextFieldDOMPasswordInputElement.addEventListener(CPDOMEventKeyPress, CPTextFieldKeyPressFunction, NO);
+        	}
 
             CPTextFieldDOMPasswordInputElement.onblur = CPTextFieldBlurFunction;
         }
         
         CPTextFieldDOMInputElement = CPTextFieldDOMPasswordInputElement;
     }
+    else if ([self wraps])
+    { 
+    	//alert("wraps");
+       	if (!CPTextFieldDOMMultilineInputElement)
+        {
+      		//console.log("here");
+        	CPTextFieldDOMMultilineInputElement = document.createElement("textarea");
+        	CPTextFieldDOMMultilineInputElement.style.resize = "none";
+        	CPTextFieldDOMMultilineInputElement.style.overflow = "hidden";
+            CPTextFieldDOMMultilineInputElement.style.position = "absolute";
+            CPTextFieldDOMMultilineInputElement.style.border = "0px";
+            CPTextFieldDOMMultilineInputElement.style.padding = "0px";
+            CPTextFieldDOMMultilineInputElement.style.margin = "0px";
+            CPTextFieldDOMMultilineInputElement.style.whiteSpace = "pre";
+            CPTextFieldDOMMultilineInputElement.style.background = "transparent";
+            CPTextFieldDOMMultilineInputElement.style.outline = "none";
+			
+			if (document.attachEvent)
+       		{
+       	    	CPTextFieldDOMMultilineInputElement.attachEvent("on" + CPDOMEventKeyUp, CPTextFieldKeyUpFunction);
+         		CPTextFieldDOMMultilineInputElement.attachEvent("on" + CPDOMEventKeyDown, CPTextFieldKeyDownFunction);
+            	CPTextFieldDOMMultilineInputElement.attachEvent("on" + CPDOMEventKeyPress, CPTextFieldKeyPressFunction);
+       		}
+        	else
+        	{
+            	CPTextFieldDOMMultilineInputElement.addEventListener(CPDOMEventKeyUp, CPTextFieldKeyUpFunction, NO);
+            	CPTextFieldDOMMultilineInputElement.addEventListener(CPDOMEventKeyDown, CPTextFieldKeyDownFunction, NO);
+            	CPTextFieldDOMMultilineInputElement.addEventListener(CPDOMEventKeyPress, CPTextFieldKeyPressFunction, NO);
+        	}
+			
+            CPTextFieldDOMMultilineInputElement.onblur = CPTextFieldBlurFunction;
+        }
+        
+        CPTextFieldDOMInputElement = CPTextFieldDOMMultilineInputElement;
+       		
+    }
     else
     {
         CPTextFieldDOMInputElement = CPTextFieldDOMStandardInputElement;
     }
-    
+    //alert("blah");
     return CPTextFieldDOMInputElement;
 }
 #endif
@@ -386,10 +451,15 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 - (void)setEditable:(BOOL)shouldBeEditable
 {
     _isEditable = shouldBeEditable;
+    
+    if (shouldBeEditable)
+        [self setThemeState:CPThemeStateEditable];
+    else
+        [self unsetThemeState:CPThemeStateEditable];
 }
 
 /*!
-    Returns \c YES if the textfield is currently editable by the user.
+    Returns <code>YES</code> if the textfield is currently editable by the user.
 */
 - (BOOL)isEditable
 {
@@ -398,7 +468,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 /*!
     Sets whether the field's text is selectable by the user.
-    @param aFlag \c YES makes the text selectable
+    @param aFlag <code>YES</code> makes the text selectable
 */
 - (void)setSelectable:(BOOL)aFlag
 {
@@ -406,7 +476,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns \c YES if the field's text is selectable by the user.
+    Returns <code>YES</code> if the field's text is selectable by the user.
 */
 - (BOOL)isSelectable
 {
@@ -415,7 +485,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 /*!
     Sets whether the field's text is secure.
-    @param aFlag \c YES makes the text secure
+    @param aFlag <code>YES</code> makes the text secure
 */
 - (void)setSecure:(BOOL)aFlag
 {
@@ -423,7 +493,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns \c YES if the field's text is secure (password entry).
+    Returns <code>YES</code> if the field's text is secure (password entry).
 */
 - (BOOL)isSecure
 {
@@ -433,7 +503,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 // Setting the Bezel Style
 /*!
     Sets whether the textfield will have a bezeled border.
-    @param shouldBeBezeled \c YES means the textfield will draw a bezeled border
+    @param shouldBeBezeled <code>YES</code> means the textfield will draw a bezeled border
 */
 - (void)setBezeled:(BOOL)shouldBeBezeled
 {
@@ -444,7 +514,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns \c YES if the textfield draws a bezeled border.
+    Returns <code>YES</code> if the textfield draws a bezeled border.
 */
 - (BOOL)isBezeled
 {
@@ -478,7 +548,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 /*!
     Sets whether the textfield will have a border drawn.
-    @param shouldBeBordered \c YES makes the textfield draw a border
+    @param shouldBeBordered <code>YES</code> makes the textfield draw a border
 */
 - (void)setBordered:(BOOL)shouldBeBordered
 {
@@ -489,7 +559,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns \c YES if the textfield has a border.
+    Returns <code>YES</code> if the textfield has a border.
 */
 - (BOOL)isBordered
 {
@@ -498,7 +568,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 /*!
     Sets whether the textfield will have a background drawn.
-    @param shouldDrawBackground \c YES makes the textfield draw a background
+    @param shouldDrawBackground <code>YES</code> makes the textfield draw a background
 */
 - (void)setDrawsBackground:(BOOL)shouldDrawBackground
 {
@@ -512,7 +582,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns \c YES if the textfield draws a background.
+    Returns <code>YES</code> if the textfield draws a background.
 */
 - (BOOL)drawsBackground
 {
@@ -555,6 +625,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
         [[CPTextFieldInputOwner window] makeFirstResponder:nil];
 
     [self setThemeState:CPThemeStateEditing];
+   
 
     [self _updatePlaceholderState];
 
@@ -582,7 +653,9 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     var contentRect = [self contentRectForBounds:[self bounds]];
 
     element.style.top = _CGRectGetMinY(contentRect) + "px";
-    element.style.left = (_CGRectGetMinX(contentRect) - 1) + "px"; // why -1?
+    element.style.left = (_CGRectGetMinX(contentRect) - 1) + "px"; // why -1? //will be -3 if it wraps
+    if([self wraps])
+    	element.style.left = (_CGRectGetMinX(contentRect) - 3) + "px"; //will be -3 if it wraps	
     element.style.width = _CGRectGetWidth(contentRect) + "px";
     element.style.height = _CGRectGetHeight(contentRect) + "px";
 
@@ -671,7 +744,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 }
 
 /*!
-    Returns the string the text field.
+    Returns the string of the text field.
 */
 - (id)objectValue
 {
@@ -692,7 +765,7 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 {
     var string = [self stringValue];
 
-    if ((!string || string.length === 0) && ![self hasThemeState:CPThemeStateEditing])
+    if ((!string || [string length] === 0) && ![self hasThemeState:CPThemeStateEditing])
         [self setThemeState:CPTextFieldStatePlaceholder];
     else
         [self unsetThemeState:CPTextFieldStatePlaceholder];
@@ -852,10 +925,28 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
     return bounds;
 }
 
+- (CGRect)focusRingRectForBounds:(CFRect)bounds
+{
+    var focusRingInset = [self currentValueForThemeAttribute:@"focus-inset"];
+
+    if (_CGInsetIsEmpty(focusRingInset))
+        return bounds;
+    
+    bounds.origin.x += focusRingInset.left;
+    bounds.origin.y += focusRingInset.top;
+    bounds.size.width -= focusRingInset.left + focusRingInset.right;
+    bounds.size.height -= focusRingInset.top + focusRingInset.bottom;
+    
+    return bounds;
+}
+
 - (CGRect)rectForEphemeralSubviewNamed:(CPString)aName
 {
     if (aName === "bezel-view")
         return [self bezelRectForBounds:[self bounds]];
+  	
+  	else if (aName === "focus-ring-view")
+        return [self focusRingRectForBounds:[self bounds]];
     
     else if (aName === "content-view")
         return [self contentRectForBounds:[self bounds]];
@@ -866,6 +957,14 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 - (CPView)createEphemeralSubviewNamed:(CPString)aName
 {
     if (aName === "bezel-view")
+    {
+        var view = [[CPView alloc] initWithFrame:_CGRectMakeZero()];
+
+        [view setHitTests:NO];
+        
+        return view;
+    }
+    else if (aName === "focus-ring-view")
     {
         var view = [[CPView alloc] initWithFrame:_CGRectMakeZero()];
 
@@ -886,12 +985,21 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
 
 - (void)layoutSubviews
 {
+	var focusRingView = [self layoutEphemeralSubviewNamed:@"focus-ring-view"
+                                           positioned:CPWindowBelow
+                      relativeToEphemeralSubviewNamed:@"content-view"];
+   	if (focusRingView)
+        [focusRingView setBackgroundColor:[self currentValueForThemeAttribute:@"focus-ring-color"]];
+
     var bezelView = [self layoutEphemeralSubviewNamed:@"bezel-view"
                                            positioned:CPWindowBelow
                       relativeToEphemeralSubviewNamed:@"content-view"];
       
     if (bezelView)
         [bezelView setBackgroundColor:[self currentValueForThemeAttribute:@"bezel-color"]];
+        
+    
+	
     
     var contentView = [self layoutEphemeralSubviewNamed:@"content-view"
                                              positioned:CPWindowAbove
@@ -924,6 +1032,17 @@ CPTextFieldStatePlaceholder = CPThemeState("placeholder");
         [contentView setTextShadowOffset:[self currentValueForThemeAttribute:@"text-shadow-offset"]];
     }
 }
+
+- (void)setWraps:(BOOL)aFlag
+{
+	_wraps = aFlag;
+}
+
+- (BOOL)wraps
+{
+	return _wraps;
+}
+
 
 @end
 
