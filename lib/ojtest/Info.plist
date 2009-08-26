@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CPBundleExecutable</key>
+	<string>ojtest.sj</string>
+	<key>CPBundleIdentifier</key>
+	<string>com.280n.ojtest</string>
+	<key>CPBundleInfoDictionaryVersion</key>
+	<real>6.0</real>
+	<key>CPBundleName</key>
+	<string>ojtest</string>
+	<key>CPBundlePackageType</key>
+	<string>280N</string>
+	<key>CPBundlePlatforms</key>
+	<array>
+		<string>objj</string>
+	</array>
+	<key>CPBundleReplacedFiles</key>
+	<array>
+		<string>main.j</string>
+		<string>OJTestCase.j</string>
+		<string>OJTestFailure.j</string>
+		<string>OJTestListenerText.j</string>
+		<string>OJTestResult.j</string>
+		<string>OJTestSuite.j</string>
+	</array>
+	<key>CPBundleVersion</key>
+	<string>0.6.5</string>
+</dict>
+</plist>
